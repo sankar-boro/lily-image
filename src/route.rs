@@ -52,21 +52,6 @@ async fn create_user_dir(request: web::Json<UserRequest>) -> HttpResponse {
     }
 }
 
-async fn add_image(request: web::Json<UserRequest>) -> HttpResponse {
-    let path = format!("{}{}", PATH, &request.user_id);
-    match fs::create_dir(&path) {
-        Ok(_) => {
-            HttpResponse::Ok().body("Created dir.")
-        },
-        Err(e) => {
-            HttpResponse::build(StatusCode::FORBIDDEN).json(ErrorResponse {
-                status: 403,
-                message: e.to_string()
-            })
-        }
-    }
-}
-
 async fn home() -> HttpResponse {
     HttpResponse::Ok().body("Home!")
 }
