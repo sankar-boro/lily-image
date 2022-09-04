@@ -1,4 +1,6 @@
 mod route;
+mod upload;
+mod unique;
 
 use anyhow::Result;
 use actix_cors::Cors;
