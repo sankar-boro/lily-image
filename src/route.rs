@@ -5,9 +5,11 @@ use actix_files;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
+use crate::error::Error;
 use actix_web::http::StatusCode;
-use actix_web::{web, HttpRequest, Result, Error, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::http::header::{ContentDisposition, DispositionType};
+use anyhow::Result;
 
 static PATH: &str = "/home/sankar/Projects/lily-images/";
 
@@ -59,6 +61,6 @@ async fn home() -> HttpResponse {
 pub fn routes(config: &mut web::ServiceConfig) {
     config.route("/images/{filename:.*}", web::get().to(index));
     config.route("/create_user_dir", web::post().to(create_user_dir));
-    config.service(web::resource("/upload/image").route(web::post().to(upload_image)));
+    config.service(web::resource("/upload_image/{token}").route(web::post().to(upload_image)));
     config.route("/", web::get().to(home));
 }

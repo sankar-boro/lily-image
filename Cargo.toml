@@ -24,6 +24,15 @@ sanitize-filename = "0.3.0"
 uuid = { version = "0.8", features = ["serde", "v1", "v4"] }
 chrono = "0.4.19"
 rand = "0.8.3"
+jsonwebtoken = "7"
+derive_more = "0.99.11"
 
 # image libs
 image = "0.24.3"
+
+#db
+scylla = "0.3.1"
+
+#logger
+env_logger = "0.8"
+log = "0.4"
