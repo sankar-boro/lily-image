@@ -7,14 +7,16 @@ use futures::{StreamExt, TryStreamExt};
 use std::{io::Write, path::Path};
 use serde::{Deserialize, Serialize};
 use image::{self, imageops};
-use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+
 
 
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 struct Claims {
    userId: String,
-   contextId: String
+   contextId: String,
+   exp: usize,
 }
 
 static PATH: &str = "/home/sankar/Projects/lily-images/";
@@ -27,9 +29,8 @@ pub struct UserRequest {
 // NOTE: image wont upload from postman if you set Content-Type: multipart/form-data
 // Postman->Body->binary
 pub async fn upload_image(mut payload: Multipart, token: web::Path<String>) -> Result<HttpResponse, Error> {
-
-    // let token = encode(&Header::default(), &claims, &EncodingKey::from_secret("secret".as_ref())).unwrap();
-    let decode_token = decode::<Claims>(&token, &DecodingKey::from_secret("secret".as_ref()), &Validation::new(Algorithm::HS256))?;
+    println!("token: {}", token);
+    let decode_token = decode::<Claims>(&token, &DecodingKey::from_secret("secret".as_ref()), &Validation::new(Algorithm::HS512))?;
     let claims = decode_token.claims;
     let user_dir = format!("{}/{}", PATH, &claims.userId);
     let is_user_dir: bool = Path::new(&user_dir).is_dir();
@@ -47,8 +48,8 @@ pub async fn upload_image(mut payload: Multipart, token: web::Path<String>) -> R
 
     while let Ok(Some(mut field)) = payload.try_next().await {
         let filename = time_uuid().to_string();
-        let filepath = format!("{}{}.tmp.{}", post_dir, filename, "jpg");
-        let filepath1 = format!("{}{}.{}", post_dir, filename, "jpg");
+        let filepath = format!("{}/{}.tmp.{}", post_dir, filename, "jpg");
+        let filepath1 = format!("{}/{}.{}", post_dir, filename, "jpg");
 
         println!("filepath: {}", filepath);
         paths.push((filepath.clone(), filepath1.clone()));
