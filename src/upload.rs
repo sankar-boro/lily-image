@@ -24,6 +24,11 @@ pub struct UserRequest {
     user_id: String,
 }
 
+#[derive(Serialize, Deserialize)]
+struct UploadResponse {
+    image_url: String,
+}
+
 // NOTE: image wont upload from postman if you set Content-Type: multipart/form-data
 // Postman->Body->binary
 pub async fn upload_image(mut payload: Multipart, token: web::Path<(String, String)>) -> Result<HttpResponse, Error> {
@@ -42,7 +47,7 @@ pub async fn upload_image(mut payload: Multipart, token: web::Path<(String, Stri
     }
     // iterate over multipart stream
     let mut paths: Vec<(String, String)> = Vec::new();
-
+    let mut image_url: String = String::new();
     while let Ok(Some(mut field)) = payload.try_next().await {
         // let con = field.content_disposition();
         // let ext = con.get_filename_ext();
@@ -59,6 +64,7 @@ pub async fn upload_image(mut payload: Multipart, token: web::Path<(String, Stri
         let ext = &fileext[fileext.len() - 3..];
         let filepath = format!("{}/{}.tmp.{}", post_dir, filename, ext);
         let filepath1 = format!("{}/{}.{}", post_dir, filename, &ext);
+        image_url = format!("{}/{}/{}.{}", token.0, token.1, filename, ext);
         paths.push((filepath.clone(), filepath1.clone()));
 
         // File::create is blocking operation, use threadpool
@@ -85,5 +91,7 @@ pub async fn upload_image(mut payload: Multipart, token: web::Path<(String, Stri
         d.save(&path.1).unwrap();
     }
 
-    Ok(HttpResponse::Ok().body("Image uploaded!"))
+    Ok(HttpResponse::Ok().json(UploadResponse{
+        image_url
+    }))
 }
