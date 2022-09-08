@@ -7,9 +7,7 @@ use futures::{StreamExt, TryStreamExt};
 use std::{io::Write, path::Path};
 use serde::{Deserialize, Serialize};
 use image::{self, imageops};
-use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
-
-
+// use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(non_snake_case)]
@@ -28,13 +26,12 @@ pub struct UserRequest {
 
 // NOTE: image wont upload from postman if you set Content-Type: multipart/form-data
 // Postman->Body->binary
-pub async fn upload_image(mut payload: Multipart, token: web::Path<String>) -> Result<HttpResponse, Error> {
-    println!("token: {}", token);
-    let decode_token = decode::<Claims>(&token, &DecodingKey::from_secret("secret".as_ref()), &Validation::new(Algorithm::HS512))?;
-    let claims = decode_token.claims;
-    let user_dir = format!("{}/{}", PATH, &claims.userId);
+pub async fn upload_image(mut payload: Multipart, token: web::Path<(String, String)>) -> Result<HttpResponse, Error> {
+    
+    // let decode_token = decode::<Claims>(&token, &DecodingKey::from_secret("secret".as_ref()), &Validation::new(Algorithm::HS512))?;
+    let user_dir = format!("{}/{}", PATH, &token.0);
     let is_user_dir: bool = Path::new(&user_dir).is_dir();
-    let post_dir = format!("{}/{}", user_dir, &claims.contextId);
+    let post_dir = format!("{}/{}", user_dir, &token.1);
     let is_post_dir: bool = Path::new(&post_dir).is_dir();
 
     if !is_user_dir {
@@ -47,11 +44,21 @@ pub async fn upload_image(mut payload: Multipart, token: web::Path<String>) -> R
     let mut paths: Vec<(String, String)> = Vec::new();
 
     while let Ok(Some(mut field)) = payload.try_next().await {
-        let filename = time_uuid().to_string();
-        let filepath = format!("{}/{}.tmp.{}", post_dir, filename, "jpg");
-        let filepath1 = format!("{}/{}.{}", post_dir, filename, "jpg");
+        // let con = field.content_disposition();
+        // let ext = con.get_filename_ext();
+        let content_type = field.content_disposition();
+        let fileext = content_type.get_filename();
+        let fileext = match fileext {
+            Some(r) => r,
+            None => {
+                return Err(Error::from("image processing failed.").into());
+            }
+        };
 
-        println!("filepath: {}", filepath);
+        let filename = time_uuid().to_string();
+        let ext = &fileext[fileext.len() - 3..];
+        let filepath = format!("{}/{}.tmp.{}", post_dir, filename, ext);
+        let filepath1 = format!("{}/{}.{}", post_dir, filename, &ext);
         paths.push((filepath.clone(), filepath1.clone()));
 
         // File::create is blocking operation, use threadpool

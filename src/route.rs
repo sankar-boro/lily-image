@@ -61,6 +61,6 @@ async fn home() -> HttpResponse {
 pub fn routes(config: &mut web::ServiceConfig) {
     config.route("/images/{filename:.*}", web::get().to(index));
     config.route("/create_user_dir", web::post().to(create_user_dir));
-    config.service(web::resource("/upload_image/{token}").route(web::post().to(upload_image)));
+    config.service(web::resource("/upload_image/{userId}/{postId}").route(web::post().to(upload_image)));
     config.route("/", web::get().to(home));
 }

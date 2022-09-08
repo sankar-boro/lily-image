@@ -29,6 +29,25 @@ impl From<jsonwebtoken::errors::Error> for Error {
     }
 }
 
+//
+impl From<String> for Error {
+    fn from(e: String) -> Self {
+        Error {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: e,
+        }
+    }
+}
+
+impl From<&str> for Error {
+    fn from(e: &str) -> Self {
+        Error {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: e.to_string(),
+        }
+    }
+}
+
 #[derive(Display, Debug)]
 #[display(fmt = "status: {}", status)]
 pub struct Error {
