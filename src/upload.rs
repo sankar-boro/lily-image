@@ -2,7 +2,7 @@ use crate::unique::time_uuid;
 use crate::error::Error;
 
 use actix_web::{HttpResponse, web};
-use actix_multipart::{Multipart};
+use actix_multipart::{Multipart, Field};
 use futures::{StreamExt, TryStreamExt};
 use std::{io::Write, path::Path};
 use serde::{Deserialize, Serialize};
@@ -29,11 +29,7 @@ struct UploadResponse {
     image_url: String,
 }
 
-// NOTE: image wont upload from postman if you set Content-Type: multipart/form-data
-// Postman->Body->binary
-pub async fn upload_image(mut payload: Multipart, token: web::Path<(String, String)>) -> Result<HttpResponse, Error> {
-    
-    // let decode_token = decode::<Claims>(&token, &DecodingKey::from_secret("secret".as_ref()), &Validation::new(Algorithm::HS512))?;
+async fn save_image(field: &mut Field, token: &web::Path<(String, String)>) -> Result<(String,String,String), Error> {
     let user_dir = format!("{}/{}", PATH, &token.0);
     let is_user_dir: bool = Path::new(&user_dir).is_dir();
     let post_dir = format!("{}/{}", user_dir, &token.1);
@@ -45,53 +41,152 @@ pub async fn upload_image(mut payload: Multipart, token: web::Path<(String, Stri
     if !is_post_dir {
         std::fs::create_dir(&post_dir)?;
     }
-    // iterate over multipart stream
-    let mut paths: Vec<(String, String)> = Vec::new();
-    let mut image_url: String = String::new();
+
+    let content_type = field.content_disposition();
+    let fileext = content_type.get_filename();
+    let fileext = match fileext {
+        Some(r) => r,
+        None => {
+            return Err(Error::from("image processing failed.").into());
+        }
+    };
+    let filename = time_uuid().to_string();
+    let ext = &fileext[fileext.len() - 3..];
+    let tmp_image = format!("{}/{}.tmp.{}", post_dir, filename, ext);
+    let tmp_image_clone = tmp_image.clone();
+    let cropped_image_path = format!("{}/{}.{}", post_dir, filename, &ext);
+    let image_url = format!("{}/{}/{}.{}", token.0, token.1, filename, ext);
+
+    // File::create is blocking operation, use threadpool
+    let mut f = web::block(|| std::fs::File::create(tmp_image_clone))
+        .await?;
+
+    let mut done = false;
+    // Field in turn is stream of *Bytes* object
+    while let Some(chunk) = field.next().await {
+        let data = chunk?;
+        // filesystem operations are blocking, we have to use threadpool
+        f = web::block(move || {
+            let mut g = f?; 
+            g.write_all(&data)?;
+            Ok(g)
+        }).await?;
+        done = true;
+    }
+    if done == false {
+        return Err(Error::from("Could not save image.").into());
+    }
+    Ok((tmp_image, cropped_image_path, image_url))
+}
+
+async fn get_value(field: &mut Field) -> Result<Option<u32>, Error> {
+    let mut value: Option<u32> = None;
+    while let Some(chunk) = field.next().await {
+        let data = chunk?;
+        let v = String::from_utf8_lossy(&data).to_string();
+        value = Some(v.parse()?);
+    }
+    Ok(value)
+}
+
+
+// NOTE: image wont upload from postman if you set Content-Type: multipart/form-data
+// Postman->Body->binary
+pub async fn upload_image(mut payload: Multipart, token: web::Path<(String, String)>) -> Result<HttpResponse, Error> {
+    
+    let mut image_data: Option<(String, String, String)> = None;
+    let mut props: u32 = 0;
+    let mut width: u32 = 0;
+    let mut height: u32 = 0;
+    let mut x: u32 = 0;
+    let mut y: u32 = 0;
+
     while let Ok(Some(mut field)) = payload.try_next().await {
-        // let con = field.content_disposition();
-        // let ext = con.get_filename_ext();
-        let content_type = field.content_disposition();
-        let fileext = content_type.get_filename();
-        let fileext = match fileext {
-            Some(r) => r,
+        let content_disposition = field.content_disposition();
+        let name = match content_disposition.get_name() {
+            Some(name) => name,
             None => {
-                return Err(Error::from("image processing failed.").into());
+                return Err(Error::from("Cannot get name").into());
             }
         };
-
-        let filename = time_uuid().to_string();
-        let ext = &fileext[fileext.len() - 3..];
-        let filepath = format!("{}/{}.tmp.{}", post_dir, filename, ext);
-        let filepath1 = format!("{}/{}.{}", post_dir, filename, &ext);
-        image_url = format!("{}/{}/{}.{}", token.0, token.1, filename, ext);
-        paths.push((filepath.clone(), filepath1.clone()));
-
-        // File::create is blocking operation, use threadpool
-        let mut f = web::block(|| std::fs::File::create(filepath))
-            .await
-            .unwrap();
-
-        // Field in turn is stream of *Bytes* object
-        while let Some(chunk) = field.next().await {
-            let data = chunk.unwrap();
-            // filesystem operations are blocking, we have to use threadpool
-            f = web::block(move || {
-                let mut g = f.unwrap(); 
-                g.write_all(&data).unwrap();
-                Ok(g)
-            }).await.unwrap();
+        match name {
+            "image" => {
+                image_data = Some(save_image(&mut field, &token).await?);
+                props += 1;
+            },
+            "width" => {
+                match get_value(&mut field).await? {
+                    Some(v) => {
+                        width = v;
+                        props += 1;
+                    },
+                    None => {}
+                }
+            },
+            "height" => {
+                match get_value(&mut field).await? {
+                    Some(v) => {
+                        height = v;
+                        props += 1;
+                    },
+                    None => {}
+                }
+            },
+            "x" => {
+                match get_value(&mut field).await? {
+                    Some(v) => {
+                        x = v;
+                        props += 1;
+                    },
+                    None => {}
+                }
+            },
+            "y" => {
+                match get_value(&mut field).await? {
+                    Some(v) => {
+                        y = v;
+                        props += 1;
+                    },
+                    None => {}
+                }
+            },
+            _ => {}
         }
-
     }
-    for path in paths.iter() {
-        let mut img = image::open(&path.0).unwrap();
-        let subimg = imageops::crop(&mut img, 120, 305, 1080, 607);
-        let d = subimg.to_image();
-        d.save(&path.1).unwrap();
+    
+    let mut image_url: Option<String> = None;
+    
+    if props == 5 {
+        if let Some(paths) = image_data {
+            let mut img = image::open(&paths.0)?;
+            let subimg = imageops::crop(&mut img, x, y, width, height);
+            let d = subimg.to_image();
+            d.save(&paths.1)?;
+            image_url = Some(paths.2.clone());
+        }
     }
 
-    Ok(HttpResponse::Ok().json(UploadResponse{
-        image_url
+    if image_url.is_none() {
+        return Err(Error::from("Could not save image"));
+    }
+    Ok(HttpResponse::Ok().json(UploadResponse {
+        image_url: image_url.unwrap()
     }))
 }
+
+// // NOTE: image wont upload from postman if you set Content-Type: multipart/form-data
+// // Postman->Body->binary
+// pub async fn test_image(mut payload: Multipart) -> Result<HttpResponse, Error> {
+//     while let Ok(Some(mut field)) = payload.try_next().await {
+//         let t = field.content_disposition();
+//         let q = t.get_name().unwrap();
+//         println!("Mime: {}", t);
+//         println!("Name: {}", q);
+        
+//         if q != "image" {
+            
+//         }
+//     }
+
+//     Ok(HttpResponse::Ok().body("Ok."))
+// }

@@ -1,5 +1,7 @@
-use actix_web::{http::StatusCode, HttpResponse};
+use actix_multipart::MultipartError;
+use actix_web::{http::StatusCode, HttpResponse, error::BlockingError};
 use derive_more::Display;
+use image::ImageError;
 use serde::Serialize;
 
 impl From<anyhow::Error> for Error {
@@ -28,6 +30,42 @@ impl From<jsonwebtoken::errors::Error> for Error {
         }
     }
 }
+
+impl From<std::num::ParseIntError> for Error {
+    fn from(e: std::num::ParseIntError) -> Self {
+        Error {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: e.to_string(),
+        }
+    }
+}
+impl From<ImageError> for Error {
+    fn from(e: ImageError) -> Self {
+        Error {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: e.to_string(),
+        }
+    }
+}
+
+impl From<BlockingError> for Error {
+    fn from(e: BlockingError) -> Self {
+        Error {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: e.to_string(),
+        }
+    }
+}
+
+impl From<MultipartError> for Error {
+    fn from(e: MultipartError) -> Self {
+        Error {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: e.to_string(),
+        }
+    }
+}
+
 
 //
 impl From<String> for Error {
