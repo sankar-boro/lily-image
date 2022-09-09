@@ -29,8 +29,12 @@ struct UploadResponse {
     image_url: String,
 }
 
+async fn create_file(p: &String) -> Result<std::fs::File, std::io::Error> {
+    std::fs::File::create(p)
+}
+
 async fn save_image(field: &mut Field, token: &web::Path<(String, String)>) -> Result<(String,String,String), Error> {
-    let user_dir = format!("{}/{}", PATH, &token.0);
+    let user_dir = format!("{}{}", PATH, &token.0);
     let is_user_dir: bool = Path::new(&user_dir).is_dir();
     let post_dir = format!("{}/{}", user_dir, &token.1);
     let is_post_dir: bool = Path::new(&post_dir).is_dir();
@@ -43,30 +47,30 @@ async fn save_image(field: &mut Field, token: &web::Path<(String, String)>) -> R
     }
 
     let content_type = field.content_disposition();
-    let fileext = content_type.get_filename();
-    let fileext = match fileext {
+    let filename = content_type.get_filename();
+    let filename = match filename {
         Some(r) => r,
         None => {
             return Err(Error::from("image processing failed.").into());
         }
     };
-    let filename = time_uuid().to_string();
-    let ext = &fileext[fileext.len() - 3..];
-    let tmp_image = format!("{}/{}.tmp.{}", post_dir, filename, ext);
+    let new_filename = time_uuid().to_string();
+    let split_filename: Vec<&str> = filename.split('.').collect();
+    let ext = split_filename[1].clone();
+    let tmp_image = format!("{}/{}.tmp.{}", post_dir, new_filename, ext);
     let tmp_image_clone = tmp_image.clone();
-    let cropped_image_path = format!("{}/{}.{}", post_dir, filename, &ext);
-    let image_url = format!("{}/{}/{}.{}", token.0, token.1, filename, ext);
-
+    let cropped_image_path = format!("{}/{}.{}", post_dir, new_filename, &ext);
+    let image_url = format!("{}/{}/{}.{}", token.0, token.1, new_filename, ext);
+    
     // File::create is blocking operation, use threadpool
-    let mut f = web::block(|| std::fs::File::create(tmp_image_clone))
-        .await?;
+    let mut f = create_file(&tmp_image_clone).await;
 
     let mut done = false;
     // Field in turn is stream of *Bytes* object
     while let Some(chunk) = field.next().await {
         let data = chunk?;
         // filesystem operations are blocking, we have to use threadpool
-        f = web::block(move || {
+        f = web::block(move || -> Result<std::fs::File, std::io::Error> {
             let mut g = f?; 
             g.write_all(&data)?;
             Ok(g)
