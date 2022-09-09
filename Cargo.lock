@@ -1165,7 +1165,6 @@ dependencies = [
  "actix-session",
  "actix-web",
  "anyhow",
- "bytes",
  "chrono",
  "derive_more",
  "env_logger",
