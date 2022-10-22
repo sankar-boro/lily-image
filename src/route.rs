@@ -4,6 +4,7 @@ use std::fs;
 use actix_files;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use crate::middleware::Authentication;
 
 use crate::error::Error;
 use actix_web::http::StatusCode;
@@ -73,7 +74,7 @@ pub fn routes(config: &mut web::ServiceConfig) {
     config.route("/images/{filename:.*}", web::get().to(index));
     config.route("/{userid}/{postid}/{filename}", web::get().to(get_image_by_id));
     config.route("/create_user_dir", web::post().to(create_user_dir));
-    config.service(web::resource("/upload_image").route(web::post().to(upload_image)));
+    config.service(web::resource("/upload_image").wrap(Authentication{}).route(web::post().to(upload_image)));
     // config.service(web::resource("/test_image").route(web::post().to(test_image)));
     config.route("/", web::get().to(home));
 }

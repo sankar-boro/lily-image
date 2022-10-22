@@ -4,6 +4,25 @@ use derive_more::Display;
 use image::ImageError;
 use serde::Serialize;
 
+
+impl From<uuid::Error> for Error {
+    fn from(e: uuid::Error) -> Self {
+        Error {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: e.to_string(),
+        }
+    }
+}
+
+impl From<actix_web::Error> for Error {
+    fn from(e: actix_web::Error) -> Self {
+        Error {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: e.to_string(),
+        }
+    }
+}
+
 impl From<anyhow::Error> for Error {
     fn from(e: anyhow::Error) -> Self {
         Error {

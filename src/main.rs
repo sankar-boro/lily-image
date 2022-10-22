@@ -2,6 +2,8 @@ mod route;
 mod upload;
 mod unique;
 mod error;
+mod auth;
+mod middleware;
 
 use anyhow::Result;
 use actix_cors::Cors;
@@ -10,6 +12,7 @@ use actix_web::web::{
     self, 
     // Data
 };
+use actix_redis::RedisSession;
 
 use scylla::batch::Batch;
 use scylla::{
@@ -82,6 +85,12 @@ async fn main() -> Result<()> {
 
         ActixApp::new()
             .wrap(cors)
+            .wrap(
+                RedisSession::new("127.0.0.1:6379", &[0; 32])
+                .cookie_name("lily-session")
+                .cookie_http_only(true)
+                .ttl(86400)
+            )
             .app_data(web::Data::new(app.clone()))
             .configure(route::routes)
     })

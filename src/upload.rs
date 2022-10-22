@@ -1,12 +1,15 @@
 use crate::unique::time_uuid;
 use crate::error::Error;
 
+use uuid::Uuid;
 use actix_web::{HttpResponse, web};
 use actix_multipart::{Multipart, Field};
 use futures::{StreamExt, TryStreamExt};
 use std::{io::Write, path::Path};
 use serde::{Deserialize, Serialize};
 use image::{self, imageops};
+use actix_session::Session;
+use crate::{auth::AuthSession};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(non_snake_case)]
@@ -110,8 +113,11 @@ async fn get_value(field: &mut Field) -> Result<Option<String>, Error> {
 
 // NOTE: image wont upload from postman if you set Content-Type: multipart/form-data
 // Postman->Body->binary
-pub async fn upload_image(mut payload: Multipart) -> Result<HttpResponse, Error> {
-    
+pub async fn upload_image(mut payload: Multipart, session: Session) -> Result<HttpResponse, Error> {
+    let auth = session.user_info()?;
+    let author_id = Uuid::parse_str(&auth.userId)?;
+    println!("author_id: {}", author_id);
+
     let mut image_data: Option<(String, String, String)> = None;
     let mut metadata: Option<MetaData> = None;
 
