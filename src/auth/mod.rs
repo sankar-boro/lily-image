@@ -4,6 +4,7 @@ use crate::error::Error;
 
 
 #[derive(Deserialize, Serialize)]
+#[allow(non_snake_case)]
 pub struct AUTHUSER {
     pub userId: String,
     pub fname: String,

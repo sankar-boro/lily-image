@@ -1,23 +1,12 @@
 use crate::unique::time_uuid;
 use crate::error::Error;
 
-use uuid::Uuid;
 use actix_web::{HttpResponse, web};
 use actix_multipart::{Multipart, Field};
 use futures::{StreamExt, TryStreamExt};
 use std::{io::Write, path::Path};
 use serde::{Deserialize, Serialize};
-use image::{self, imageops};
-use actix_session::Session;
-use crate::{auth::AuthSession};
-
-#[derive(Debug, Serialize, Deserialize)]
-#[allow(non_snake_case)]
-struct Claims {
-   userId: String,
-   contextId: String,
-   exp: usize,
-}
+use image::{self, imageops::{self, FilterType}};
 
 static PATH: &str = "/home/sankar/Projects/lily-images/";
 
@@ -113,10 +102,7 @@ async fn get_value(field: &mut Field) -> Result<Option<String>, Error> {
 
 // NOTE: image wont upload from postman if you set Content-Type: multipart/form-data
 // Postman->Body->binary
-pub async fn upload_image(mut payload: Multipart, session: Session) -> Result<HttpResponse, Error> {
-    let auth = session.user_info()?;
-    let author_id = Uuid::parse_str(&auth.userId)?;
-    println!("author_id: {}", author_id);
+pub async fn upload_image(mut payload: Multipart) -> Result<HttpResponse, Error> {
 
     let mut image_data: Option<(String, String, String)> = None;
     let mut metadata: Option<MetaData> = None;
@@ -152,7 +138,8 @@ pub async fn upload_image(mut payload: Multipart, session: Session) -> Result<Ht
             let mut img = image::open(&paths.0)?;
             let subimg = imageops::crop(&mut img, meta.x.clone(), meta.y.clone(), meta.width.clone(), meta.height.clone());
             let d = subimg.to_image();
-            d.save(&paths.1)?;
+            let x = image::imageops::resize(&d, meta.width.clone()/100*50, meta.height.clone()/100*50, FilterType::Nearest);
+            x.save(&paths.1)?;
             image_url = Some(paths.2.clone());
         }
     }
