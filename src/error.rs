@@ -4,7 +4,6 @@ use derive_more::Display;
 use image::ImageError;
 use serde::Serialize;
 
-
 impl From<uuid::Error> for Error {
     fn from(e: uuid::Error) -> Self {
         Error {

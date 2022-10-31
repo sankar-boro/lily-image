@@ -1,4 +1,5 @@
 use crate::upload::{upload_image};
+use crate::image_test::test_image;
 
 use std::fs;
 use actix_files;
@@ -75,6 +76,6 @@ pub fn routes(config: &mut web::ServiceConfig) {
     config.route("/{userid}/{postid}/{filename}", web::get().to(get_image_by_id));
     config.route("/create_user_dir", web::post().to(create_user_dir));
     config.service(web::resource("/upload_image").wrap(Authentication{}).route(web::post().to(upload_image)));
-    // config.service(web::resource("/test_image").route(web::post().to(test_image)));
+    config.service(web::resource("/test_image").route(web::post().to(test_image)));
     config.route("/", web::get().to(home));
 }
