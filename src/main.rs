@@ -4,31 +4,13 @@ mod unique;
 mod error;
 mod auth;
 mod middleware;
-mod image_test;
+mod postman;
 
 use anyhow::Result;
 use actix_cors::Cors;
 use actix_web::{App as ActixApp, HttpServer};
-use actix_web::web::{
-    self, 
-    // Data
-};
 use actix_redis::RedisSession;
 
-use scylla::batch::Batch;
-use scylla::{
-    Session, 
-    SessionBuilder, 
-    transport::errors::NewSessionError
-};
-use scylla::{QueryResult, BatchResult};
-use scylla::query::Query;
-use scylla::frame::value::ValueList;
-use scylla::frame::value::BatchValues;
-use scylla::transport::errors::QueryError;
-
-use log::error;
-use std::sync::Arc;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
