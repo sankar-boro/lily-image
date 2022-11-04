@@ -1,0 +1,36 @@
+Image Size and Resolution Requirements
+This table shows the ideal image sizes and resolutions for different online and screen-based applications, and for printing photos.
+
+Application	Ideal Image Size
+(in pixels)	Resolution
+(in pixels/inch)
+For mobile phones and portable devices with small screens:	320 x 240 pixels	72 ppi
+ 
+
+For emails, online sharing sites and viewing on standard computer monitors:	1024 x 768 pixels	72 ppi
+ 
+
+Viewing at full-screen size on LCD monitors with 5:4 aspect ratio	1280 x 1024 pixels	72 ppi
+ 
+
+Viewing on standard definition TV sets with 4:3 aspect ratios:	720 x 576 pixels	72 ppi
+ 
+
+Viewing on widescreen standard definition TV sets:	1280 x 720 pixels	72 ppi
+ 
+
+Viewing on high definition TV sets:	1920 x 1080 pixels	72 ppi
+ 
+
+You need a much higher resolution when you want to make prints of your digital photos. For photos that will be examined closely – i.e. print sizes up to A4 – the recommended output resolution is 300 pixels/inch. For larger prints, which will be viewed from greater distances, the print resolution can be somewhat lower. The table below relates the output size required for high-quality photo prints to sensor megapixel counts.
+
+Sensor Resolution (megapixels)	Typical Image Resolution (pixels)	Maximum Print Size	Print Resolution	Maximum Output Size
+2.16	1800 x 1200	6 x 4 inch	300 dpi	Snapshot prints
+3.9	2272 x 1704	7.6 x 5.7 inch	300 dpi	‘Jumbo’ snapshot prints
+5.0	2592 x 1944	8.6 x 6.5 inch	300 dpi	8 x 6 inch enlargements
+7.1	3072 x 2304	10.2 x 7.7 inch	300 dpi	A4 sized prints
+8.0	3264 x 2448	13.6 x 10.2 inch	240 dpi	A4 sized prints
+10.0	3648 x 2736	18.2 x 13.7 inch	200 dpi	A3 sized prints
+12.1	4000 x 3000	20 x 15 inch	200 dpi	A3+ sized prints
+14.7	4416 x 3312	22.1 x 16.6 inch	200 dpi	A2 sized prints
+21.0	5616 x 3744	31.2 x 20.8 inch	180 dpi	A1 sized prints
