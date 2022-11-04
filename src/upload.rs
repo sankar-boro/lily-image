@@ -109,7 +109,14 @@ fn crop_image(paths: &(String, String, String), metadata: &MetaData) -> Result<O
     let mut img = image::open(&paths.0)?;
     let subimg = imageops::crop(&mut img, metadata.x.clone(), metadata.y.clone(), metadata.width.clone(), metadata.height.clone());
     let d = subimg.to_image();
-    let x = image::imageops::resize(&d, metadata.width.clone()/100*50, metadata.height.clone()/100*50, FilterType::Nearest);
+    let mut width = metadata.width.clone();
+    let mut height = metadata.height.clone();
+    if width > 1024 && height > 768 {
+        let crop_width = (1024*100)/width;
+        width = 1024;
+        height = (height*crop_width)/100;
+    }
+    let x = image::imageops::resize(&d, width, height, FilterType::Nearest);
     x.save(&paths.1)?;
     let image_url = Some(paths.2.clone());
     fs::remove_file(paths.0.clone())?;
