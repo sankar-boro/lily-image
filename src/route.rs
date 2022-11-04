@@ -1,5 +1,6 @@
 use crate::upload::{upload_image};
 use crate::postman;
+use crate::unique::time_uuid;
 
 use std::fs;
 use actix_files;
@@ -71,6 +72,16 @@ async fn home() -> HttpResponse {
     HttpResponse::Ok().body("Home!")
 }
 
+async fn new_uuid(path: web::Path<String>) -> HttpResponse {
+    let l = str::parse::<u32>(path.as_ref()).unwrap();
+    for _ in 0..l {
+        let x = time_uuid();
+        let y = x.to_string();
+        println!("'{}'", y);
+    }
+    HttpResponse::Ok().body("Done.")
+}
+
 pub fn routes(config: &mut web::ServiceConfig) {
     config.route("/images/{filename:.*}", web::get().to(index));
     config.route("/{userid}/{postid}/{filename}", web::get().to(get_image_by_id));
@@ -78,4 +89,5 @@ pub fn routes(config: &mut web::ServiceConfig) {
     config.service(web::resource("/upload_image").wrap(Authentication{}).route(web::post().to(upload_image)));
     config.service(web::resource("/test_image").route(web::post().to(postman::upload_image)));
     config.route("/", web::get().to(home));
+    config.route("/new_id/{id}", web::get().to(new_uuid));
 }
