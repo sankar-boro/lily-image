@@ -8,7 +8,7 @@ use std::{io::Write, path::Path, fs};
 use serde::{Deserialize, Serialize};
 use image::{self, imageops::{self, FilterType}};
 
-static PATH: &str = "/home/sankar/Projects/lily-images/";
+static PATH: &str = "/home/sankar/Projects/lily-images";
 
 #[derive(Serialize, Deserialize)]
 pub struct UserRequest {
@@ -34,24 +34,31 @@ async fn create_file(p: &String) -> Result<std::fs::File, std::io::Error> {
     std::fs::File::create(p)
 }
 
-fn create_dir(metadata: &MetaData) -> Result<(String, String), Error> {
-    let user_dir = format!("{}{}", PATH, &metadata.user_id);
+fn create_dir(metadata: &MetaData) -> Result<String, Error> {
+    let user_dir = format!("{}/{}", PATH, &metadata.user_id);
     let is_user_dir: bool = Path::new(&user_dir).is_dir();
-    let post_dir = format!("{}/{}", user_dir, &metadata.post_id);
-    let is_post_dir: bool = Path::new(&post_dir).is_dir();
+    // let post_dir = format!("{}/{}", user_dir, &metadata.post_id);
+    // let is_post_dir: bool = Path::new(&post_dir).is_dir();
 
     if !is_user_dir {
         std::fs::create_dir(&user_dir)?;
     }
-    if !is_post_dir {
-        std::fs::create_dir(&post_dir)?;
-    }
-    Ok((user_dir, post_dir))
+    // if !is_post_dir {
+    //     std::fs::create_dir(&post_dir)?;
+    // }
+    Ok(metadata.user_id.clone().to_owned())
 }
 
-async fn save_image(field: &mut Field, metadata: &MetaData) -> Result<(String,String,String), Error> {
-    let (_, post_dir) = create_dir(&metadata)?;
+#[derive(Debug)]
+struct URLs{
+    dim320: String,
+    dim720: String,
+    dim1024: String,
+    tmp_s: String,
+    user_dir: String,
+}
 
+fn get_filename(field: &mut Field, user_dir: &str) -> Result<URLs, Error> {
     let content_type = field.content_disposition();
     let meta_filename = content_type.get_filename();
     let meta_filename = match meta_filename {
@@ -64,17 +71,28 @@ async fn save_image(field: &mut Field, metadata: &MetaData) -> Result<(String,St
     if split_filename.len() != 2 {
         return Err(Error::from("error in splitting filename.").into());
     }
-
     let new_filename = time_uuid().to_string();
     let ext = split_filename[1].clone();
 
-    let img_tmp_path = format!("{}/{}.tmp.{}", post_dir, new_filename, ext);
-    // let tmp_image_clone = tmp_image.clone();
-    let crp_img_path = format!("{}/{}.{}", post_dir, new_filename, &ext);
-    let image_url = format!("{}/{}/{}.{}", &metadata.user_id, &metadata.post_id, new_filename, ext);
+    let dim320 = format!("{}_320.{}", &new_filename, ext);
+    let dim720 = format!("{}_720.{}", &new_filename, ext);
+    let dim1024 = format!("{}_1024.{}", &new_filename, ext);
+    let tmp_s = format!("{}/{}/{}.tmp.{}", PATH, user_dir, &new_filename, ext);
+    Ok(URLs {
+        dim320,
+        dim720,
+        dim1024,
+        tmp_s,
+        user_dir: user_dir.clone().to_owned()
+    })
+}
+
+async fn save_image(field: &mut Field, metadata: &MetaData) -> Result<URLs, Error> {
+    let user_dir = create_dir(&metadata)?;
+    let filename = get_filename(field, &user_dir)?;
     
     // File::create is blocking operation, use threadpool
-    let mut f = create_file(&img_tmp_path).await;
+    let mut f = create_file(&filename.tmp_s).await;
 
     let mut done = false;
     // Field in turn is stream of *Bytes* object
@@ -91,7 +109,7 @@ async fn save_image(field: &mut Field, metadata: &MetaData) -> Result<(String,St
     if done == false {
         return Err(Error::from("Could not save image.").into());
     }
-    Ok((img_tmp_path, crp_img_path, image_url))
+    Ok(filename)
 }
 
 async fn get_value(field: &mut Field) -> Result<Option<String>, Error> {
@@ -105,21 +123,21 @@ async fn get_value(field: &mut Field) -> Result<Option<String>, Error> {
 }
 
 
-fn crop_image(paths: &(String, String, String), metadata: &MetaData) -> Result<Option<String>, Error> {
-    let mut img = image::open(&paths.0)?;
+fn crop_image(paths: &URLs, metadata: &MetaData) -> Result<Option<String>, Error> {
+    let mut img = image::open(&paths.tmp_s)?;
     let subimg = imageops::crop(&mut img, metadata.x.clone(), metadata.y.clone(), metadata.width.clone(), metadata.height.clone());
     let d = subimg.to_image();
     let mut width = metadata.width.clone();
     let mut height = metadata.height.clone();
-    if width > 1024 && height > 768 {
-        let crop_width = (1024*100)/width;
-        width = 1024;
+    if width > 720 && height > 576 {
+        let crop_width = (720*100)/width;
+        width = 720;
         height = (height*crop_width)/100;
     }
     let x = image::imageops::resize(&d, width, height, FilterType::Nearest);
-    x.save(&paths.1)?;
-    let image_url = Some(paths.2.clone());
-    fs::remove_file(paths.0.clone())?;
+    x.save(format!("{}/{}/{}", PATH, &paths.user_dir, &paths.dim720))?;
+    let image_url = Some(format!("{}/{}", &paths.user_dir, &paths.dim720));
+    fs::remove_file(&paths.tmp_s)?;
     Ok(image_url)
 }
 
@@ -127,7 +145,7 @@ fn crop_image(paths: &(String, String, String), metadata: &MetaData) -> Result<O
 // Postman->Body->binary
 pub async fn upload_image(mut payload: Multipart) -> Result<HttpResponse, Error> {
 
-    let mut image_data: Option<(String, String, String)> = None;
+    let mut image_data: Option<URLs> = None;
     let mut metadata: Option<MetaData> = None;
 
     while let Ok(Some(mut field)) = payload.try_next().await {

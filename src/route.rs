@@ -14,7 +14,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::http::header::{ContentDisposition, DispositionType};
 use anyhow::Result;
 
-static PATH: &str = "/home/sankar/Projects/lily-images/";
+static PATH: &str = "/home/sankar/Projects/lily-images";
 
 async fn index(req: HttpRequest) -> Result<actix_files::NamedFile, Error> {
     let mut images_dir = PathBuf::from(PATH);
@@ -31,8 +31,8 @@ async fn index(req: HttpRequest) -> Result<actix_files::NamedFile, Error> {
         }))
 }
 
-async fn get_image_by_id(path: web::Path<(String, String, String)>) -> Result<actix_files::NamedFile, Error> {
-    let full_path = format!("{}/{}/{}/{}", PATH, path.0, path.1, path.2);
+async fn get_image_by_id(path: web::Path<(String, String)>) -> Result<actix_files::NamedFile, Error> {
+    let full_path = format!("{}/{}/{}", PATH, path.0, path.1);
     let file = actix_files::NamedFile::open(&full_path)?;
     Ok(file
         .use_last_modified(true)
@@ -84,7 +84,7 @@ async fn new_uuid(path: web::Path<String>) -> HttpResponse {
 
 pub fn routes(config: &mut web::ServiceConfig) {
     config.route("/images/{filename:.*}", web::get().to(index));
-    config.route("/{userid}/{postid}/{filename}", web::get().to(get_image_by_id));
+    config.route("/{userid}/{filename}", web::get().to(get_image_by_id));
     config.route("/create_user_dir", web::post().to(create_user_dir));
     config.service(web::resource("/upload_image").wrap(Authentication{}).route(web::post().to(upload_image)));
     config.service(web::resource("/test_image").route(web::post().to(postman::upload_image)));
