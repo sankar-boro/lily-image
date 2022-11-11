@@ -1,6 +1,7 @@
 use crate::upload::{upload_image};
 use crate::postman;
 use crate::unique::time_uuid;
+use crate::delete_image::delete_image;
 
 use std::fs;
 use actix_files;
@@ -90,4 +91,9 @@ pub fn routes(config: &mut web::ServiceConfig) {
     config.service(web::resource("/test_image").route(web::post().to(postman::upload_image)));
     config.route("/", web::get().to(home));
     config.route("/new_id/{id}", web::get().to(new_uuid));
+    config.service(
+        web::scope("/delete")
+        .wrap(Authentication{})
+        .route("/image/{userId}/{image_name}", web::post().to(delete_image))
+    );
 }

@@ -1,0 +1,1 @@
+pub static PATH: &str = "/home/sankar/Projects/lily-images";

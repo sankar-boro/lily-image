@@ -5,6 +5,8 @@ mod error;
 mod auth;
 mod middleware;
 mod postman;
+mod utils;
+mod delete_image;
 
 use anyhow::Result;
 use actix_cors::Cors;

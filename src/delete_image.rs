@@ -1,14 +1,11 @@
-use crate::unique::time_uuid;
 use crate::error::Error;
+use crate::utils::PATH;
+use std::fs;
 
 use actix_web::{HttpResponse, web};
-use actix_multipart::{Multipart, Field};
-use futures::{StreamExt, TryStreamExt};
-use std::{io::Write, path::Path};
-use serde::{Deserialize, Serialize};
-use image::{self, imageops};
 
-pub async fn delete_image(mut payload: Multipart) -> Result<HttpResponse, Error> {
-    
-
+pub async fn delete_image(payload: web::Path<(String, String)>) -> Result<HttpResponse, Error> {
+    let full_path = format!("{}/{}/{}", PATH, &payload.0, &payload.1);
+    fs::remove_file(&full_path)?;
+    Ok(HttpResponse::Ok().body("Deleted."))
 }
