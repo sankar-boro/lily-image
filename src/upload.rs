@@ -6,7 +6,7 @@ use actix_multipart::{Multipart, Field};
 use futures::{StreamExt, TryStreamExt};
 use std::{io::Write, path::Path, fs};
 use serde::{Deserialize, Serialize};
-use image::{self, imageops::{self, FilterType}};
+use image::{self, imageops::{self, FilterType}, ImageEncoder};
 
 static PATH: &str = "/home/sankar/Projects/lily-images";
 
@@ -17,7 +17,10 @@ pub struct UserRequest {
 
 #[derive(Serialize, Deserialize)]
 struct UploadResponse {
-    image_url: String,
+    image_name: String,
+    ext: String,
+    height_720: u32, 
+    height_320: u32
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -55,6 +58,8 @@ struct URLs{
     dim720: String,
     dim1024: String,
     tmp_s: String,
+    image_name: String,
+    ext: String,
     user_dir: String,
 }
 
@@ -83,6 +88,8 @@ fn get_filename(field: &mut Field, user_dir: &str) -> Result<URLs, Error> {
         dim720,
         dim1024,
         tmp_s,
+        image_name: new_filename,
+        ext: ext.to_owned(),
         user_dir: user_dir.clone().to_owned()
     })
 }
@@ -123,22 +130,33 @@ async fn get_value(field: &mut Field) -> Result<Option<String>, Error> {
 }
 
 
-fn crop_image(paths: &URLs, metadata: &MetaData) -> Result<Option<String>, Error> {
+fn crop_image(paths: &URLs, metadata: &MetaData) -> Result<(u32, u32), Error> {
     let mut img = image::open(&paths.tmp_s)?;
     let subimg = imageops::crop(&mut img, metadata.x.clone(), metadata.y.clone(), metadata.width.clone(), metadata.height.clone());
     let d = subimg.to_image();
-    let mut width = metadata.width.clone();
-    let mut height = metadata.height.clone();
-    if width > 720 && height > 576 {
-        let crop_width = (720*100)/width;
-        width = 720;
-        height = (height*crop_width)/100;
+    let mut width_720 = metadata.width.clone();
+    let mut height_720 = metadata.height.clone();
+    let mut width_320 = metadata.width.clone();
+    let mut height_320 = metadata.height.clone();
+    if width_720 > 720 && height_720 > 576 {
+        let crop_width_720 = (720*100)/width_720;
+        width_720 = 720;
+        height_720 = (height_720*crop_width_720)/100;
+
+
+        let crop_width_320 = (320*100)/width_320;
+        width_320 = 320;
+        height_320 = (height_320*crop_width_320)/100;
     }
-    let x = image::imageops::resize(&d, width, height, FilterType::Nearest);
+    let x = image::imageops::resize(&d, width_720, height_720, FilterType::Nearest);
     x.save(format!("{}/{}/{}", PATH, &paths.user_dir, &paths.dim720))?;
-    let image_url = Some(format!("{}/{}", &paths.user_dir, &paths.dim720));
+
+    let y = image::imageops::resize(&d, width_320, height_320, FilterType::Nearest);
+    y.save(format!("{}/{}/{}", PATH, &paths.user_dir, &paths.dim320))?;
+
     fs::remove_file(&paths.tmp_s)?;
-    Ok(image_url)
+
+    Ok((height_720, height_320))
 }
 
 // NOTE: image wont upload from postman if you set Content-Type: multipart/form-data
@@ -172,17 +190,23 @@ pub async fn upload_image(mut payload: Multipart) -> Result<HttpResponse, Error>
         }
     }
     
-    let mut image_url: Option<String> = None;
-    if let Some(paths) = image_data {
+    let mut image_dim: (u32, u32) = (0, 0);
+    if let Some(paths) = &image_data {
         if let Some(metadata) = metadata {
-            image_url = crop_image(&paths, &metadata)?;
+            image_dim = crop_image(&paths, &metadata)?;
         }
     }
 
-    if image_url.is_none() {
+    if image_data.is_none() {
         return Err(Error::from("Could not save image"));
     }
+
+    let image_data = image_data.unwrap();
+
     Ok(HttpResponse::Ok().json(UploadResponse {
-        image_url: image_url.unwrap()
+        image_name: image_data.image_name.clone(),
+        ext: image_data.ext.clone(),
+        height_720: image_dim.0,
+        height_320: image_dim.1,
     }))
 }
