@@ -27,6 +27,7 @@ chrono = "0.4.19"
 rand = "0.8.3"
 jsonwebtoken = "7"
 derive_more = "0.99.11"
+webp = "0.2.2"
 
 # image libs
 image = "0.24.3"
