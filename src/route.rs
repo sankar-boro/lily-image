@@ -87,7 +87,7 @@ pub fn routes(config: &mut web::ServiceConfig) {
     config.route("/images/{filename:.*}", web::get().to(index));
     config.route("/{userid}/{filename}", web::get().to(get_image_by_id));
     config.route("/create_user_dir", web::post().to(create_user_dir));
-    config.service(web::resource("/upload_image").wrap(Authentication{}).route(web::post().to(upload_image)));
+    config.service(web::resource("/upload_image").route(web::post().to(upload_image)));
     config.service(web::resource("/test_image").route(web::post().to(postman::upload_image)));
     config.route("/", web::get().to(home));
     config.route("/new_id/{id}", web::get().to(new_uuid));

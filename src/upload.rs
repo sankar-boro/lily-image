@@ -6,7 +6,7 @@ use actix_multipart::{Multipart, Field};
 use futures::{StreamExt, TryStreamExt};
 use std::{io::Write, path::Path, fs};
 use serde::{Deserialize, Serialize};
-use image::{self, imageops::{self, FilterType}, ImageEncoder};
+use image::{self, imageops::{self, FilterType}};
 
 static PATH: &str = "/home/sankar/Projects/lily-images";
 
@@ -16,54 +16,45 @@ pub struct UserRequest {
 }
 
 #[derive(Serialize, Deserialize)]
+#[allow(non_snake_case)]
 struct UploadResponse {
-    image_name: String,
-    ext: String,
-    height_720: u32, 
-    height_320: u32
+    imgName: String,
+    imgExt: String,
+    imgMd: Option<u32>, 
+    imgSm: Option<u32>,
+    imgLg: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-struct MetaData {
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-    user_id: String,
-    post_id: String
+#[allow(non_snake_case)]
+struct RequestMetadata {
+    xAxis: u32,
+    yAxis: u32,
+    imgWidth: u32,
+    imgHeight: u32,
+    userId: String
 }
 
-async fn create_file(p: &String) -> Result<std::fs::File, std::io::Error> {
-    std::fs::File::create(p)
-}
-
-fn create_dir(metadata: &MetaData) -> Result<String, Error> {
-    let user_dir = format!("{}/{}", PATH, &metadata.user_id);
-    let is_user_dir: bool = Path::new(&user_dir).is_dir();
-    // let post_dir = format!("{}/{}", user_dir, &metadata.post_id);
-    // let is_post_dir: bool = Path::new(&post_dir).is_dir();
-
-    if !is_user_dir {
-        std::fs::create_dir(&user_dir)?;
+impl RequestMetadata {
+    fn create_dir(&self) -> Result<(), Error> {
+        let user_dir = format!("{}/{}", PATH, &self.userId);
+        let is_user_dir: bool = Path::new(&user_dir).is_dir();
+        if !is_user_dir {
+            std::fs::create_dir(&user_dir)?;
+        }
+        Ok(())
     }
-    // if !is_post_dir {
-    //     std::fs::create_dir(&post_dir)?;
-    // }
-    Ok(metadata.user_id.clone().to_owned())
 }
 
 #[derive(Debug)]
-struct URLs{
-    dim320: String,
-    dim720: String,
-    dim1024: String,
-    tmp_s: String,
-    image_name: String,
-    ext: String,
-    user_dir: String,
+#[allow(non_snake_case)]
+struct ImageProps {
+    imgName: String,
+    imgExt: String,
+    tmpPath: String,
 }
 
-fn get_filename(field: &mut Field, user_dir: &str) -> Result<URLs, Error> {
+fn create_url(field: &mut Field, user_id: &str) -> Result<ImageProps, Error> {
     let content_type = field.content_disposition();
     let meta_filename = content_type.get_filename();
     let meta_filename = match meta_filename {
@@ -76,30 +67,19 @@ fn get_filename(field: &mut Field, user_dir: &str) -> Result<URLs, Error> {
     if split_filename.len() != 2 {
         return Err(Error::from("error in splitting filename.").into());
     }
-    let new_filename = time_uuid().to_string();
-    let ext = split_filename[1].clone();
+    let img_name = time_uuid().to_string();
+    let img_ext = split_filename[1].to_owned();
+    let tmp_path = format!("{}/{}/{}.tmp.{}", PATH, user_id, &img_name, &img_ext);
 
-    let dim320 = format!("{}_320.{}", &new_filename, ext);
-    let dim720 = format!("{}_720.{}", &new_filename, ext);
-    let dim1024 = format!("{}_1024.{}", &new_filename, ext);
-    let tmp_s = format!("{}/{}/{}.tmp.{}", PATH, user_dir, &new_filename, ext);
-    Ok(URLs {
-        dim320,
-        dim720,
-        dim1024,
-        tmp_s,
-        image_name: new_filename,
-        ext: ext.to_owned(),
-        user_dir: user_dir.clone().to_owned()
+    Ok(ImageProps {
+        imgName: img_name,
+        imgExt: img_ext,
+        tmpPath: tmp_path
     })
 }
 
-async fn save_image(field: &mut Field, metadata: &MetaData) -> Result<URLs, Error> {
-    let user_dir = create_dir(&metadata)?;
-    let filename = get_filename(field, &user_dir)?;
-    
-    // File::create is blocking operation, use threadpool
-    let mut f = create_file(&filename.tmp_s).await;
+async fn parse_image(field: &mut Field, path: &str) -> Result<(), Error> {
+    let mut f = std::fs::File::create(&path);
 
     let mut done = false;
     // Field in turn is stream of *Bytes* object
@@ -116,28 +96,28 @@ async fn save_image(field: &mut Field, metadata: &MetaData) -> Result<URLs, Erro
     if done == false {
         return Err(Error::from("Could not save image.").into());
     }
-    Ok(filename)
+    Ok(())
 }
 
-async fn get_value(field: &mut Field) -> Result<Option<String>, Error> {
-    let mut value: Option<String> = None;
+async fn parse_metadata(field: &mut Field) -> Result<Option<RequestMetadata>, Error> {
+    let mut value: Option<RequestMetadata> = None;
     while let Some(chunk) = field.next().await {
         let data = chunk?;
-        let v = String::from_utf8_lossy(&data).to_string();
+        let v = serde_json::from_str(&String::from_utf8_lossy(&data).to_string())?;
         value = Some(v);
     }
     Ok(value)
 }
 
 
-fn crop_image(paths: &URLs, metadata: &MetaData) -> Result<(u32, u32), Error> {
-    let mut img = image::open(&paths.tmp_s)?;
-    let subimg = imageops::crop(&mut img, metadata.x.clone(), metadata.y.clone(), metadata.width.clone(), metadata.height.clone());
+fn crop_image(img_props: &ImageProps, metadata: &RequestMetadata) -> Result<(u32, u32), Error> {
+    let mut img = image::open(&img_props.tmpPath)?;
+    let subimg = imageops::crop(&mut img, metadata.xAxis.clone(), metadata.yAxis.clone(), metadata.imgWidth.clone(), metadata.imgHeight.clone());
     let d = subimg.to_image();
-    let mut width_720 = metadata.width.clone();
-    let mut height_720 = metadata.height.clone();
-    let mut width_320 = metadata.width.clone();
-    let mut height_320 = metadata.height.clone();
+    let mut width_720 = metadata.imgWidth.clone();
+    let mut height_720 = metadata.imgHeight.clone();
+    let mut width_320 = metadata.imgWidth.clone();
+    let mut height_320 = metadata.imgHeight.clone();
     if width_720 > 720 && height_720 > 576 {
         let crop_width_720 = (720*100)/width_720;
         width_720 = 720;
@@ -149,44 +129,34 @@ fn crop_image(paths: &URLs, metadata: &MetaData) -> Result<(u32, u32), Error> {
         height_320 = (height_320*crop_width_320)/100;
     }
     let x = image::imageops::resize(&d, width_720, height_720, FilterType::Nearest);
-    x.save(format!("{}/{}/{}", PATH, &paths.user_dir, &paths.dim720))?;
+    x.save(format!("{}/{}/{}_720.{}", PATH, &metadata.userId, &img_props.imgName, &img_props.imgExt))?;
 
     let y = image::imageops::resize(&d, width_320, height_320, FilterType::Nearest);
-    y.save(format!("{}/{}/{}", PATH, &paths.user_dir, &paths.dim320))?;
+    y.save(format!("{}/{}/{}_320.{}", PATH, &metadata.userId, &img_props.imgName, &img_props.imgExt))?;
 
-    fs::remove_file(&paths.tmp_s)?;
+    fs::remove_file(&img_props.tmpPath)?;
 
     Ok((height_720, height_320))
 }
 
-// NOTE: image wont upload from postman if you set Content-Type: multipart/form-data
-// Postman->Body->binary
+
 pub async fn upload_image(mut payload: Multipart) -> Result<HttpResponse, Error> {
 
-    let mut image_data: Option<URLs> = None;
-    let mut metadata: Option<MetaData> = None;
+    let mut image_data: Option<ImageProps> = None;
+    let mut metadata: Option<RequestMetadata> = None;
 
-    while let Ok(Some(mut field)) = payload.try_next().await {
-        let content_disposition = field.content_disposition();
-        let name = match content_disposition.get_name() {
-            Some(name) => name,
-            None => {
-                return Err(Error::from("Cannot get name").into());
+    if let Some(mut field) = payload.try_next().await? {
+        metadata = parse_metadata(&mut field).await?;
+    }
+
+    if let Some(mut field) = payload.try_next().await? {
+        if let Some(me) = &metadata {
+            me.create_dir()?;
+            image_data = Some(create_url(&mut field, &me.userId)?);
+            if let Some(url) = &image_data {
+                let tmp_path = format!("{}/{}/{}.tmp.{}", PATH,&me.userId, &url.imgName, &url.imgExt);
+                parse_image(&mut field, &tmp_path).await?
             }
-        };
-        match name {
-            "metadata" => {
-                let x = get_value(&mut field).await?;
-                if let Some(x) = x {
-                    metadata = Some(serde_json::from_str(&x)?);
-                } 
-            },
-            "image" => {
-                if let Some(metadata) = &metadata {
-                    image_data = Some(save_image(&mut field, metadata).await?);
-                }
-            },
-            _ => {}
         }
     }
     
@@ -204,9 +174,10 @@ pub async fn upload_image(mut payload: Multipart) -> Result<HttpResponse, Error>
     let image_data = image_data.unwrap();
 
     Ok(HttpResponse::Ok().json(UploadResponse {
-        image_name: image_data.image_name.clone(),
-        ext: image_data.ext.clone(),
-        height_720: image_dim.0,
-        height_320: image_dim.1,
+        imgName: image_data.imgName.clone(),
+        imgExt: image_data.imgExt.clone(),
+        imgMd: Some(image_dim.0),
+        imgSm: Some(image_dim.1),
+        imgLg: None,
     }))
 }
