@@ -1,5 +1,6 @@
 use crate::unique::time_uuid;
 use crate::error::Error;
+use crate::{PATH, TRASH};
 
 use actix_web::{HttpResponse, web};
 use actix_multipart::{Multipart, Field};
@@ -7,8 +8,6 @@ use futures::{StreamExt, TryStreamExt};
 use std::{io::Write, path::Path, fs};
 use serde::{Deserialize, Serialize};
 use image::{self, imageops::{self, FilterType}};
-
-static PATH: &str = "/home/sankar/Projects/lily-images";
 
 #[derive(Serialize, Deserialize)]
 pub struct UserRequest {
@@ -33,6 +32,30 @@ struct RequestMetadata {
     imgWidth: u32,
     imgHeight: u32,
     userId: String
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[allow(non_snake_case)]
+struct RequestMetadataUpdate {
+    xAxis: u32,
+    yAxis: u32,
+    imgWidth: u32,
+    imgHeight: u32,
+    userId: String,
+    imgExt: String,
+    imgName: String,
+}
+
+impl RequestMetadataUpdate {
+    fn move_trash(&self) -> Result<(), std::io::Error> {
+        let from_sm = format!("{}/{}/{}_320.{}", PATH, &self.userId, &self.imgName, &self.imgExt);
+        let from_md = format!("{}/{}/{}_720.{}", PATH, &self.userId, &self.imgName, &self.imgExt);
+        let to_sm = format!("{}/{}_320.{}", TRASH, &self.imgName, &self.imgExt);
+        let to_md = format!("{}/{}_720.{}", TRASH, &self.imgName, &self.imgExt);
+        fs::rename(from_sm, to_sm)?;
+        fs::rename(from_md, to_md)?;
+        Ok(())
+    }
 }
 
 impl RequestMetadata {
@@ -109,15 +132,24 @@ async fn parse_metadata(field: &mut Field) -> Result<Option<RequestMetadata>, Er
     Ok(value)
 }
 
+async fn parse_metadata_update(field: &mut Field) -> Result<Option<RequestMetadataUpdate>, Error> {
+    let mut value: Option<RequestMetadataUpdate> = None;
+    while let Some(chunk) = field.next().await {
+        let data = chunk?;
+        let v = serde_json::from_str(&String::from_utf8_lossy(&data).to_string())?;
+        value = Some(v);
+    }
+    Ok(value)
+}
 
-fn crop_image(img_props: &ImageProps, metadata: &RequestMetadata) -> Result<(u32, u32), Error> {
+fn crop_image(img_props: &ImageProps, x: u32, y: u32, w: u32, h: u32, user_id: &str) -> Result<(u32, u32), Error> {
     let mut img = image::open(&img_props.tmpPath)?;
-    let subimg = imageops::crop(&mut img, metadata.xAxis.clone(), metadata.yAxis.clone(), metadata.imgWidth.clone(), metadata.imgHeight.clone());
+    let subimg = imageops::crop(&mut img, x, y, w, h);
     let d = subimg.to_image();
-    let mut width_720 = metadata.imgWidth.clone();
-    let mut height_720 = metadata.imgHeight.clone();
-    let mut width_320 = metadata.imgWidth.clone();
-    let mut height_320 = metadata.imgHeight.clone();
+    let mut width_720 = w;
+    let mut height_720 = h;
+    let mut width_320 = w;
+    let mut height_320 = h;
     if width_720 > 720 && height_720 > 576 {
         let crop_width_720 = (720*100)/width_720;
         width_720 = 720;
@@ -129,16 +161,15 @@ fn crop_image(img_props: &ImageProps, metadata: &RequestMetadata) -> Result<(u32
         height_320 = (height_320*crop_width_320)/100;
     }
     let x = image::imageops::resize(&d, width_720, height_720, FilterType::Nearest);
-    x.save(format!("{}/{}/{}_720.{}", PATH, &metadata.userId, &img_props.imgName, &img_props.imgExt))?;
+    x.save(format!("{}/{}/{}_720.{}", PATH, user_id, &img_props.imgName, &img_props.imgExt))?;
 
     let y = image::imageops::resize(&d, width_320, height_320, FilterType::Nearest);
-    y.save(format!("{}/{}/{}_320.{}", PATH, &metadata.userId, &img_props.imgName, &img_props.imgExt))?;
+    y.save(format!("{}/{}/{}_320.{}", PATH, user_id, &img_props.imgName, &img_props.imgExt))?;
 
     fs::remove_file(&img_props.tmpPath)?;
 
     Ok((height_720, height_320))
 }
-
 
 pub async fn upload_image(mut payload: Multipart) -> Result<HttpResponse, Error> {
 
@@ -162,8 +193,51 @@ pub async fn upload_image(mut payload: Multipart) -> Result<HttpResponse, Error>
     
     let mut image_dim: (u32, u32) = (0, 0);
     if let Some(paths) = &image_data {
-        if let Some(metadata) = metadata {
-            image_dim = crop_image(&paths, &metadata)?;
+        if let Some(me) = metadata {
+            image_dim = crop_image(&paths, me.xAxis, me.yAxis, me.imgWidth, me.imgHeight, &me.userId)?;
+        }
+    }
+
+    if image_data.is_none() {
+        return Err(Error::from("Could not save image"));
+    }
+
+    let image_data = image_data.unwrap();
+
+    Ok(HttpResponse::Ok().json(UploadResponse {
+        imgName: image_data.imgName.clone(),
+        imgExt: image_data.imgExt.clone(),
+        imgMd: Some(image_dim.0),
+        imgSm: Some(image_dim.1),
+        imgLg: None,
+    }))
+}
+
+
+pub async fn update_image(mut payload: Multipart) -> Result<HttpResponse, Error> {
+
+    let mut image_data: Option<ImageProps> = None;
+    let mut metadata: Option<RequestMetadataUpdate> = None;
+
+    if let Some(mut field) = payload.try_next().await? {
+        metadata = parse_metadata_update(&mut field).await?;
+    }
+
+    if let Some(mut field) = payload.try_next().await? {
+        if let Some(me) = &metadata {
+            me.move_trash()?;
+            image_data = Some(create_url(&mut field, &me.userId)?);
+            if let Some(url) = &image_data {
+                let tmp_path = format!("{}/{}/{}.tmp.{}", PATH,&me.userId, &url.imgName, &url.imgExt);
+                parse_image(&mut field, &tmp_path).await?
+            }
+        }
+    }
+    
+    let mut image_dim: (u32, u32) = (0, 0);
+    if let Some(paths) = &image_data {
+        if let Some(me) = metadata {
+            image_dim = crop_image(&paths, me.xAxis, me.yAxis, me.imgWidth, me.imgHeight, &me.userId)?;
         }
     }
 

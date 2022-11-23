@@ -13,6 +13,8 @@ use actix_cors::Cors;
 use actix_web::{App as ActixApp, HttpServer};
 use actix_redis::RedisSession;
 
+pub(crate) static PATH: &str = "/home/sankar/Projects/lily-images";
+pub(crate) static TRASH: &str = "/home/sankar/trash";
 
 #[actix_web::main]
 async fn main() -> Result<()> {

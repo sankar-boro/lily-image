@@ -1,7 +1,8 @@
-use crate::upload::{upload_image};
+use crate::upload::{upload_image, update_image};
 use crate::postman;
 use crate::unique::time_uuid;
 use crate::delete_image::delete_image;
+use crate::{PATH};
 
 use std::fs;
 use actix_files;
@@ -14,8 +15,6 @@ use actix_web::http::StatusCode;
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::http::header::{ContentDisposition, DispositionType};
 use anyhow::Result;
-
-static PATH: &str = "/home/sankar/Projects/lily-images";
 
 async fn index(req: HttpRequest) -> Result<actix_files::NamedFile, Error> {
     let mut images_dir = PathBuf::from(PATH);
@@ -88,6 +87,7 @@ pub fn routes(config: &mut web::ServiceConfig) {
     config.route("/{userid}/{filename}", web::get().to(get_image_by_id));
     config.route("/create_user_dir", web::post().to(create_user_dir));
     config.service(web::resource("/upload_image").route(web::post().to(upload_image)));
+    config.service(web::resource("/update_image").route(web::post().to(update_image)));
     config.service(web::resource("/test_image").route(web::post().to(postman::upload_image)));
     config.route("/", web::get().to(home));
     config.route("/new_id/{id}", web::get().to(new_uuid));
