@@ -94,6 +94,13 @@ fn create_url(field: &mut Field, user_id: &str) -> Result<ImageProps, Error> {
     let img_ext = split_filename[1].to_owned();
     let tmp_path = format!("{}/{}/{}.tmp.{}", PATH, user_id, &img_name, &img_ext);
 
+    match img_ext.as_str() {
+        "jpg" | "jpeg" | "png" => {},
+        _ => {
+            return Err(Error::from("INVALID_EXT")); 
+        }
+    }
+
     Ok(ImageProps {
         imgName: img_name,
         imgExt: img_ext,
