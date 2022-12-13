@@ -232,7 +232,6 @@ pub async fn update_image(mut payload: Multipart) -> Result<HttpResponse, Error>
 
     if let Some(mut field) = payload.try_next().await? {
         if let Some(me) = &metadata {
-            me.move_trash()?;
             image_data = Some(create_url(&mut field, &me.userId)?);
             if let Some(url) = &image_data {
                 let tmp_path = format!("{}/{}/{}.tmp.{}", PATH,&me.userId, &url.imgName, &url.imgExt);
@@ -243,7 +242,7 @@ pub async fn update_image(mut payload: Multipart) -> Result<HttpResponse, Error>
     
     let mut image_dim: (u32, u32) = (0, 0);
     if let Some(paths) = &image_data {
-        if let Some(me) = metadata {
+        if let Some(me) = &metadata {
             image_dim = crop_image(&paths, me.xAxis, me.yAxis, me.imgWidth, me.imgHeight, &me.userId)?;
         }
     }
@@ -253,6 +252,10 @@ pub async fn update_image(mut payload: Multipart) -> Result<HttpResponse, Error>
     }
 
     let image_data = image_data.unwrap();
+
+    if let Some(md) = &metadata {
+        md.move_trash()?;
+    }
 
     Ok(HttpResponse::Ok().json(UploadResponse {
         imgName: image_data.imgName.clone(),
