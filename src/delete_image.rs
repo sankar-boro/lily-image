@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::utils::PATH;
+use crate::PATH;
 use std::fs;
 
 use actix_web::{HttpResponse, web};

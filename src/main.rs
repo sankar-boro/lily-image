@@ -5,20 +5,20 @@ mod error;
 mod auth;
 mod middleware;
 mod postman;
-mod utils;
 mod delete_image;
 
+use std::env;
 use anyhow::Result;
 use actix_cors::Cors;
 use actix_web::{App as ActixApp, HttpServer};
 use actix_redis::RedisSession;
 
-pub(crate) static PATH: &str = "/home/sankar/Projects/lily-images";
+pub(crate) static PATH: &str = "/home/sankar/bin/images";
 pub(crate) static TRASH: &str = "/home/sankar/trash";
 
 #[actix_web::main]
 async fn main() -> Result<()> {
-
+    let host_id = env::var("HOST").unwrap();
     HttpServer::new(move || {
         let cors = Cors::default()
               .allow_any_origin()
@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
             )
             .configure(route::routes)
     })
-    .bind("127.0.0.1:7600")?
+    .bind(format!("{}:7600", host_id))?
     .run()
     .await?;
     Ok(())
