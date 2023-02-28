@@ -11,7 +11,7 @@ use image::{self, imageops::{self, FilterType}};
 
 #[derive(Serialize, Deserialize)]
 pub struct UserRequest {
-    user_id: String,
+    user_id: i32,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -31,7 +31,7 @@ struct RequestMetadata {
     yAxis: u32,
     imgWidth: u32,
     imgHeight: u32,
-    userId: String
+    userId: i32
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -41,7 +41,7 @@ struct RequestMetadataUpdate {
     yAxis: u32,
     imgWidth: u32,
     imgHeight: u32,
-    userId: String,
+    userId: i32,
     imgExt: String,
     imgName: String,
 }
@@ -77,7 +77,7 @@ struct ImageProps {
     tmpPath: String,
 }
 
-fn create_url(field: &mut Field, user_id: &str) -> Result<ImageProps, Error> {
+fn create_url(field: &mut Field, user_id: i32) -> Result<ImageProps, Error> {
     let content_type = field.content_disposition();
     let meta_filename = content_type.get_filename();
     let meta_filename = match meta_filename {
@@ -149,7 +149,7 @@ async fn parse_metadata_update(field: &mut Field) -> Result<Option<RequestMetada
     Ok(value)
 }
 
-fn crop_image(img_props: &ImageProps, x: u32, y: u32, w: u32, h: u32, user_id: &str) -> Result<(u32, u32), Error> {
+fn crop_image(img_props: &ImageProps, x: u32, y: u32, w: u32, h: u32, user_id: i32) -> Result<(u32, u32), Error> {
     let mut img = image::open(&img_props.tmpPath)?;
     let subimg = imageops::crop(&mut img, x, y, w, h);
     let d = subimg.to_image();
@@ -190,9 +190,9 @@ pub async fn upload_image(mut payload: Multipart) -> Result<HttpResponse, Error>
     if let Some(mut field) = payload.try_next().await? {
         if let Some(me) = &metadata {
             me.create_dir()?;
-            image_data = Some(create_url(&mut field, &me.userId)?);
+            image_data = Some(create_url(&mut field, me.userId)?);
             if let Some(url) = &image_data {
-                let tmp_path = format!("{}/{}/{}.tmp.{}", PATH,&me.userId, &url.imgName, &url.imgExt);
+                let tmp_path = format!("{}/{}/{}.tmp.{}", PATH,me.userId, &url.imgName, &url.imgExt);
                 parse_image(&mut field, &tmp_path).await?
             }
         }
@@ -201,7 +201,7 @@ pub async fn upload_image(mut payload: Multipart) -> Result<HttpResponse, Error>
     let mut image_dim: (u32, u32) = (0, 0);
     if let Some(paths) = &image_data {
         if let Some(me) = metadata {
-            image_dim = crop_image(&paths, me.xAxis, me.yAxis, me.imgWidth, me.imgHeight, &me.userId)?;
+            image_dim = crop_image(&paths, me.xAxis, me.yAxis, me.imgWidth, me.imgHeight, me.userId)?;
         }
     }
 
@@ -232,9 +232,9 @@ pub async fn update_image(mut payload: Multipart) -> Result<HttpResponse, Error>
 
     if let Some(mut field) = payload.try_next().await? {
         if let Some(me) = &metadata {
-            image_data = Some(create_url(&mut field, &me.userId)?);
+            image_data = Some(create_url(&mut field, me.userId)?);
             if let Some(url) = &image_data {
-                let tmp_path = format!("{}/{}/{}.tmp.{}", PATH,&me.userId, &url.imgName, &url.imgExt);
+                let tmp_path = format!("{}/{}/{}.tmp.{}", PATH,me.userId, &url.imgName, &url.imgExt);
                 parse_image(&mut field, &tmp_path).await?
             }
         }
@@ -243,7 +243,7 @@ pub async fn update_image(mut payload: Multipart) -> Result<HttpResponse, Error>
     let mut image_dim: (u32, u32) = (0, 0);
     if let Some(paths) = &image_data {
         if let Some(me) = &metadata {
-            image_dim = crop_image(&paths, me.xAxis, me.yAxis, me.imgWidth, me.imgHeight, &me.userId)?;
+            image_dim = crop_image(&paths, me.xAxis, me.yAxis, me.imgWidth, me.imgHeight, me.userId)?;
         }
     }
 

@@ -18,7 +18,9 @@ pub(crate) static TRASH: &str = "/home/sankar/trash";
 
 #[actix_web::main]
 async fn main() -> Result<()> {
-    let host_id = env::var("HOST").unwrap();
+    let host = env::var("HOST").unwrap();
+    let port = env::var("PORT").unwrap();
+
     HttpServer::new(move || {
         let cors = Cors::default()
               .allow_any_origin()
@@ -36,7 +38,7 @@ async fn main() -> Result<()> {
             )
             .configure(route::routes)
     })
-    .bind(format!("{}:7600", host_id))?
+    .bind(format!("{}:{}", host, port))?
     .run()
     .await?;
     Ok(())

@@ -6,7 +6,7 @@ use crate::error::Error;
 #[derive(Deserialize, Serialize)]
 #[allow(non_snake_case)]
 pub struct AUTHUSER {
-    pub userId: String,
+    pub userId: i32,
     pub fname: String,
     pub lname: String,
     pub email: String,
